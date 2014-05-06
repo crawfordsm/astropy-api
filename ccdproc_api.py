@@ -10,7 +10,9 @@ from astropy.io import fits
 from astropy import units as u
 from astropy.stats.funcs import sigma_clip
 
-import ccdproc
+from ccdproc import ccddata
+from ccdproc import ccdproc
+
 '''
 The ccdproc package provides tools for the reduction and
 analysis of optical data captured with a CCD.   The package
@@ -78,44 +80,43 @@ the information that will be kept for the processing of the
 '''
 data = 100 + 10 * np.random.random((110, 100))
 # initializing without a unit raises an error
-ccddata = ccdproc.CCDData(data=data) # ValueError
-ccddata = ccdproc.CCDData(data=data, unit=u.adu)
-ccddata = ccdproc.CCDData(NDData.NDData(data), unit=u.photon)
-ccddata = ccdproc.CCDData(fits.ImageHDU(data), unit=u.adu)
+ccd = ccddata.CCDData(data=data) # ValueError
+
+ccd = ccddata.CCDData(data=data, unit=u.adu)
+ccd = ccddata.CCDData(NDData(data), unit=u.photon)
 
 #Setting basic properties of the object
 # ----------------------
-ccddata.variance = data**0.5
-ccddata.mask = np.ones(110, 100)
-ccddata.flags = np.zeros(110, 100)
+ccddata.uncertainty = data**0.5
+ccddata.mask = np.ones((110, 100), dtype=bool)
+ccddata.flags = np.zeros((110, 100))
 ccddata.wcs = None
 ccddata.meta = {}
-
-# making the metadata a Header instance gets us a case-insensitive dictionary...
-assert isinstance(ccddata.meta, fits.Header)
+ccddata.header = {}  #header and meta are interchangable
 ccddata.units = u.adu  # is this valid?
+
 
 #The ccddata class should have a functional form to create a CCDData
 #object directory from a fits file
-ccddata = ccdproc.CCDData.fits_ccddata_reader('img.fits', image_unit=u.adu)
+ccd = ccddata.fits_ccddata_reader('img.fits', unit=u.adu)
 
 # omitting a unit causes an error for now -- in the future an attempt should
 # be made to extract the unit from the FITS header.
-ccddata = ccdproc.CCDData.fits_ccddata_reader('img.fits')  # raises ValueError
+ccd = ccddata.fits_ccddata_reader('img.fits') # raises ValueError
 
 # If a file has multiple extensions the desired hdu should be specified. It
 # defaults to zero.
-ccddata = ccdproc.CCDData.fits_ccddata_reader('multi_extension.fits',
+ccd = ccddata.fits_ccddata_reader('multi_extension.fits',
                                               image_unit=u.adu,
                                               hdu=2)
 
 # any additional keywords are passed through to fits.open, with the exception
 # of those related scaling (do_not_scale_image_data and scale_back)
-ccddata = ccdproc.CCDData.fits_ccddata_reader('multi_extension.fits',
+ccd = ccddata.fits_ccddata_reader('multi_extension.fits',
                                               image_unit=u.adu,
                                               memmap=False)
 # The call below raises a TypeErrror
-ccddata = ccdproc.CCDData.fits_ccddata_reader('multi_extension.fits',
+ccd = ccddata.fits_ccddata_reader('multi_extension.fits',
                                               image_unit=u.adu,
                                               do_not_scale_image_data=True)
 
@@ -124,38 +125,38 @@ ccddata = ccdproc.CCDData.fits_ccddata_reader('multi_extension.fits',
 # FITS format auto-identified using the fits.connect.is_fits so
 # the standard way for reading in a fits image will be
 # the following: 
-ccddata = ccdproc.CCDData.read('img.fits', image_unit=u.adu)
+ccd = ccdproc.CCDData.read('img.fits', image_unit=u.adu)
 
 
 # CCDData raises an error if no unit is provided; eventually an attempt to
-# extract the unit from the FITS header should be made.
+# extract the unit from the FITS header should be made.  
 
 # Writing is handled in a similar fashion; the image ccddata is written to
 # the file img2.fits with:
-ccdproc.CCDData.fits_ccddata_writer(ccddata, 'img2.fits')
+ccdata.fits_ccddata_writer(ccd, 'img2.fits')
 
 # all additional keywords are passed on to the underlying FITS writer, e.g.
-ccdproc.CCDData.fits_ccddata_writer(ccddata, 'img2.fits', clobber=True)
+ccddata.fits_ccddata_writer(ccd, 'img2.fits', clobber=True)
 
 # The writer is registered with unified io so that in practice a user will do
-ccddata.write('img2.fits')
+ccd.write('img2.fits')
 
 # NOTE: for now any flag, mask and/or unit for ccddata is discarded when
 # writing. If you want all or some of that information preserved you must
 # create the FITS files manually.
 
-# To be completely explicit about this:
-ccddata.mask = np.ones(110, 100)
-ccddata.flags = np.zeros(110, 100)
-ccddata.write('img2.fits')
+# To be completely explicit about not writing out addition information:
+ccd.mask = np.ones(110, 100)
+ccd.flags = np.zeros(110, 100)
+ccd.write('img2.fits')
 
-ccddata2 = ccdproc.CCDData.read('img2.fits', image_unit=u.adu)
-assert ccddata2.mask is None  # even though we set ccddata.mask before saving
-assert ccddata2.flag is None  # even though we set ccddata.flag before saving
+ccd2 = ccddata.CCDData.read('img2.fits', image_unit=u.adu)
+assert ccd2.mask is None  # even though we set ccddata.mask before saving
+assert ccd2.flag is None  # even though we set ccddata.flag before saving
 
 # CCDData provides a convenience method to construct a FITS HDU from the data
 # and metadata
-hdu = ccddata.to_hdu()
+hdu = ccd.to_hdu()
 
 '''
 Keyword is an object that represents a key, value pair for use in passing
@@ -163,15 +164,15 @@ data between functions in ``ccdproc``. The value is an astropy.units.Quantity,
 with the unit specified explicitly when the Keyword instance is created.
 The key is case-insensitive.
 '''
-key = ccdproc.Keyword('exposure', unit=u.sec)
+key = ccdproc.Keyword('exposure', unit=u.s)
 header = fits.Header()
 header['exposure'] = 15.0
 # value matched  by keyword name exposure
 value = key.value_from(header)
-assert value == 15 * u.sec
+assert value == 15 * u.s
 
 # the value of a Keyword can also be set directly:
-key.value = 20 * u.sec
+key.value = 20 * u.s
 
 # String values are accommodated by not setting the unit and setting the value
 # to a string
@@ -181,98 +182,92 @@ string_key.value = 'V'
 
 # Setting a string value when a unit has been specified is an error
 
-bad_key = ccdproc.Keyword('exposure', unit=u.sec)
+bad_key = ccdproc.Keyword('exposure', unit=u.s)
 bad_key.value = '30'  # raise a ValueError
 
+''' Functional Requirements
+ ----------------------
+ A number of these different fucntions are convenient functions that
+ just outline the process that is needed.   The important thing is that
+ the process is being logged and that a clear process is being handled
+ by each step to make building a pipeline easy.   Then again, it might
+ not be easy to handle all possible steps which are needed, and the more
+ important steps will be things which aren't already handled by NDData.
+
+ All functions should propogate throught to the variance frame and
+ bad pixel mask
 '''
-Combiner is an object to facilitate image combination. Its methods perform
-the steps that are bundled into the IRAF task combine
 
-It is discussed in detail below, in the section "Image combination"
-'''
-# Functional Requirements
-# ----------------------
-# A number of these different fucntions are convenient functions that
-# just outline the process that is needed.   The important thing is that
-# the process is being logged and that a clear process is being handled
-# by each step to make building a pipeline easy.   Then again, it might
-# not be easy to handle all possible steps which are needed, and the more
-# important steps will be things which aren't already handled by NDData.
 
-#All functions should propogate throught to the variance frame and
-#bad pixel mask
-
-#convenience function based on a given value for
-#the readnoise and gain.   Units should be specified
-#for these values though.
-#Question: Do we have an object that is just a scalar
-#and a unit?  Or a scalar, unit and an error?   ie, This
-#could actually be handled by the gain and readnoise being
-#specified as an NDData object
-
-ccddata.unit = u.adu
+ccd.unit = u.adu
 # The call below should raise an error because gain and readnoise are provided
-# without units.
+# without units.  Gain and rdnoise should be Quantities
 ccddata = ccdproc.create_variance(ccddata, gain=1.0, readnoise=5.0)
 
 # The electron unit is provided by ccddata
-gain = 1.0 ccddata.electron / u.adu
-readnoise = 5.0 * u.electron
+gain = 1.0 * ccddata.electron / u.adu
+readnoise = 5.0 * ccddata.electron
 # This succeeds because the units are consistent
-ccddata = ccdproc.create_variance(ccddata, gain=gain, readnoise=readnoise)
+ccd = ccdproc.create_variance(ccd, gain=gain, readnoise=readnoise)
 
 # with the gain units below there is a mismatch between the units of the
 # image after scaling by the gain and the units of the readnoise...
-gain = 1.0 u.photon / u.adu
+gain = 1.0 *  u.photon / u.adu
 
 # ...so this should fail with an error.
-ccddata = ccdproc.create_variance(ccddata, gain=gain, readnoise=readnoise)
+ccd = ccdproc.create_variance(ccd, gain=gain, readnoise=readnoise)
 
 
-#Overscan subtract the data
-#Should be able to provide the meta data for
-#the keyworkd or provide a section to define and
-#possible an axis to specify the oritation of the
-#Question:  Best way to specify the section?  Should it be given
-#Error Checks: That the section is within the image
-ccddata = ccdproc.subtract_overscan(ccddata, section='[:,100:110]',
-                                    function='polynomial', order=3)
+#Overscan subtract the data by providing the slice of ccd with
+#the overscan section.  This will subtract off the median
+#of each row
+ccd = ccdproc.subtract_overscan(ccd, overscan=ccd[:,100:110])
+
+#Overscan subtract the data by providing the slice of ccd with
+#the overscan section.
+ccd = ccdproc.subtract_overscan(ccd, fits_section='[101:110,:]')
+
+#For the overscan region the astropy.model to fit to the data can
+#be specified
+
+
 
 #trim the images--the section gives the  part of the image to keep
-#That the trim section is within the image
-ccddata = ccdproc.trim_image(ccddata, section='[0:100,0:100]')
+#That the trim section is within the image.
+ccd = ccdproc.trim_image(ccd[0:100,0:100])
+
+#Using a section defined by fits convention
+ccd = ccdproc.trim_image(ccd, fits_section='[1:100,1:100]')
 
 #subtract the master bias. Although this is a convenience function as
 #subtracting the two arrays will do the same thing. This should be able
-#to handle logging of subtracting it off (logging should be added to NDData
-#and then this is really just a convenience function
-#Error checks: the masterbias and image are the same shape
-masterbias = NDData.NDData(np.zeros(100, 100))
-ccddata = ccdproc.subtract_bias(ccddata, masterbias)
+#to handle logging of subtracting it off 
+#Error checks: the masterbias and image are the same shape and units
+masterbias = ccddata.CCDData(np.zeros((100, 100)), unit=u.adu)
+ccd = ccdproc.subtract_bias(ccd, masterbias)
 
 #correct for dark frames
-#Error checks: the masterbias and image are the same shape
 #Options: Exposure time of the data image and the master dark image can be
 #         specified as either an astropy.units.Quantity or as a ccdata.Keyword;
 #         in the second case the exposure time will be extracted from the
 #         metadata for each image.
-masterdark = ccdproc.CCDData(np.zeros(100, 100))
+masterdark = ccddata.CCDData(np.zeros((100, 100))+10, unit=u.adu)
 masterdark.meta['exptime'] = 30.0
 ccddata.meta['EXPOSURE'] = 15.0
 
 exposure_time_key = ccdproc.Keyword('exposure',
-                                    unit=u.sec,
+                                    unit=u.s,
                                     synonyms=['exptime'])
 
 # explicitly specify exposure times
-ccddata = ccdproc.subtract_dark(ccddata, masterdark,
-                                data_exposure=15 * u.sec,
-                                dark_exposure=30 * u.sec,
+ccd = ccdproc.subtract_dark(ccd, masterdark,
+                                data_exposure=15 * u.s,
+                                dark_exposure=30 * u.s,
                                 scale=True
                                 )
 
 # get exposure times from metadata
-ccddata = ccdproc.subtract_dark(ccddata, masterdark,
+ccd = ccdproc.subtract_dark(ccd, masterdark,
                                 exposure_time=exposure_time_key,
                                 scale=True)
 
@@ -280,13 +275,15 @@ ccddata = ccdproc.subtract_dark(ccddata, masterdark,
 #associated with it.
 
 # gain can be specified as a Quantity...
-ccddata = ccdproc.gain_correct(ccddata, gain=1.0 * u.ph / u.adu)
+ccd = ccdproc.gain_correct(ccd, gain=1.0 * u.ph / u.adu)
 # ...or the gain can be specified as a ccdproc.Keyword:
 gain_key = ccdproc.Keyword('gain', unit=u.ph / u.adu)
-ccddata = ccdproc.gain_correct(ccddata, gain=gain_key)
+ccd = ccdproc.gain_correct(ccd, gain=gain_key)
 
 #Also the gain may be non-linear
-ccddata = ccdproc.gain_correct(ccddata, gain=np.array([1.0, 0.5e-3]))
+#TODO: Not impliement in v0.1
+ccd = ccdproc.gain_correct(ccd, gain=np.array([1.0, 0.5e-3]))
+
 #although then this step should be apply before any other corrections
 #if it is non-linear, but that is more up to the person processing their
 #own data.
@@ -296,8 +293,9 @@ ccddata = ccdproc.gain_correct(ccddata, gain=np.array([1.0, 0.5e-3]))
 #general because this will be dependent on the CCD and the set up of the CCD.
 #Not applicable for a single CCD situation
 #Error checks: the xtalkimage and image are the same shape
-xtalkimage = NDData.NDData(np.zeros(100, 100))
-ccddata = ccdproc.xtalk_correct(ccddata, xtalkimage, coef=1e-3)
+#TODO: Not impliement in v0.1
+xtalkimage = ccddata.CCDData(np.zeros((100, 100))+10, unit=u.adu)
+ccd = ccdproc.xtalk_correct(ccddata, xtalkimage, coef=1e-3)
 
 #flat field correction--this can either be a dome flat, sky flat, or an
 #illumination corrected image.  This step should normalize by the value of the
@@ -305,14 +303,15 @@ ccddata = ccdproc.xtalk_correct(ccddata, xtalkimage, coef=1e-3)
 #Error checks: the  flatimage and image are the same shape
 #Error checks: check for divive by zero
 #Features: If the flat is less than minvalue, minvalue is used
-flatimage = NDData.NDData(np.ones(100, 100))
-ccddata = ccdproc.flat_correct(ccddata, flatimage, minvalue=1)
+flatimage = ccddata.CCDData(np.zeros((100, 100))+10, unit=u.adu)
+ccd = ccdproc.flat_correct(ccd, flatimage, minvalue=1)
 
 #fringe correction or any correction that requires subtracting
 #off a potentially scaled image
 #Error checks: the  flatimage and image are the same shape
-fringeimage = NDData.NDData(np.ones(100, 100))
-ccddata = ccdproc.fringe_correct(ccddata, fringeimage, scale=1,
+#TODO: Not impliement in v0.1
+fringeimage = ccddata.CCDData(np.zeros((100, 100))+10, unit=u.adu)
+ccddata = ccdproc.fringe_correct(ccd, fringeimage, scale=1,
                                  operation='multiple')
 
 #cosmic ray cleaning step--this should have options for different
@@ -321,11 +320,15 @@ ccddata = ccdproc.fringe_correct(ccddata, fringeimage, scale=1,
 #step should update the mask and flags. So the user could have options
 #to replace the cosmic rays, only flag the cosmic rays, or flag and
 #mask the cosmic rays, or all of the above.
-ccddata = ccdproc.cosmicray_laplace(ccddata, method='laplace')
-ccddata = ccdproc.cosmicray_median(ccddata, method='laplace')
+#median correct the cosmic rays
+ccd = ccdproc.cosmicray_clean(ccd, thresh = 5, cr_func=ccdproc.cosmicray_median)
+
+#remove cosmic rays following van dokkum method in LA COSMIC
+ccddata = ccdproc.cosmicray_laplace(ccddata, thresh = 5, cr_func=ccdproc.cosmicray_lapace)
 
 #Apply distortion corrections
 #Either update the WCS or transform the frame
+#TODO: Add after v0.1 when WCS is working
 ccddata = ccdproc.distortion_correct(ccddata, distortion)
 
 # =======
@@ -416,42 +419,50 @@ ccddata = ccdproc.subtract_bias(ccddata, masterbias,
 # The combination process begins with the creation of a Combiner object,
 # initialized with a list of the images to be combined
 
-combine = ccdproc.Combiner([ccddata1, ccddata2, ccddata3])
+from ccdproc import combiner
+combine = combiner.Combiner([ccddata1, ccddata2, ccddata3])
 
 #   automatic rejection by min/max, sigmaclip, ccdclip, etc. provided through
 #   one method, with different helper functions
 
 # min/max
-combine.clip(method=ccdproc.minmax, max_data=30000, data_min=-100)
+combine.minmax_clipping(method=ccdproc.minmax, max_data=30000, data_min=-100)
 
 # sigmaclip (relies on astropy.stats.funcs)
-combine.clip(method=sigma_clip,
-             sigma_high=3.0, sigma_low=2.0,
-             centerfunc=np.mean,
-             exclude_extrema=True)  # min/max pixels can be excluded in the 
-                                    # sigma_clip. IRAF's clip excludes them
+combine.sigma_clipping(low_thresh = 3.0, 
+             high_thresh=3.0, 
+             func=np.mean,
+             dev_func=ma.std)
+             
+# TODO:  min/max pixels can be excluded in the sigma_clip. IRAF's clip excludes them
+# Add exclude_extrema to min/max function
 
 # ccdclip
-combine.clip(method=ccdproc.ccdclip,
-             sigma_high=3.0, sigma_low=2.0,
+# TODO: Not implemented in v0.1.  
+#Can sigma_clipping be updated to use it?
+combine.ccdclip_clipping( sigma_high=3.0, sigma_low=2.0,
              gain=1.0, read_noise=5.0,
              centerfunc=np.mean,
              exclude_extrema=True)
 
-# 4. Image scaling/zero offset with scaling determined by the mode of each
-#    image and the offset by the median. This method calculates what are
-#    effectively weights for each image
-combine.calc_weights(scale_by=np.mode, offset_by=np.median)
+# 4. Image scaling/zero offset with scaling are set by the user prior
+#    to passing the arrays to the task
+#    TODO: Implement some scaling 
+
+#    Image weights for use in the average combination can also be
+#    set by the user
+#    TODO: Implement some method for calculating the weighting
+combine.weights = weights
 
 # 5. The actual combination -- a couple of ways images can be combined
 
 # median; the excluded pixels based on the individual image masks, threshold
 # rejection, clipping, etc, are wrapped into a single mask for each image
-combined_image = combine(method=np.ma.median)
+combined_image = combine.median_combine()
 
 # average; in this case image weights can also be specified if they 
 # have been 
-combined_image = combine(method=np.ma.mean)
+combined_image = combine.average_combine()
 
 # ================
 # Helper Functions
@@ -461,19 +472,23 @@ combined_image = combine(method=np.ma.mean)
 #select different functions to fit.
 #other options are reject parameters, number of iteractions
 #and/or convergernce limit
-coef = ccdproc.iterfit(x, y, function='polynomial', order=3)
+g = models.Gaussian1D(amplitude=1.2, mean=0.9, stddev=0.5)
+coef = ccdproc.iterfit(x, y, model=g)
+
 
 #fit a 2-D function with iterative rejections and the ability to
 #select different functions to fit.
 #other options are reject parameters, number of iteractions
 #and/or convergernce limit
-coef = ccdproc.iterfit(data, function='polynomial', order=3)
+p = models.Polynomial2D(degree=2)
+coef = ccdproc.iterfit(data, function=p)
 
 #in addition to these operations, basic addition, subtraction
 # multiplication, and division should work for CCDDATA objects
 ccddata = ccddata + ccddata
 ccddata2 = ccddata * 2
-
+# TODO: This needs changes in base classes to work but 
+# .add works for CCDDATA objects
 
 #combine a set of NDData objects
 alldata = ccdproc.combine([ccddata, ccddata2], method='average',
